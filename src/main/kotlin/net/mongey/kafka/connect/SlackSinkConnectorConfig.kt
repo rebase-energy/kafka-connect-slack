@@ -3,18 +3,17 @@ package net.mongey.kafka.connect
 import org.apache.kafka.common.config.AbstractConfig
 import org.apache.kafka.common.config.ConfigDef
 
+import org.slf4j.LoggerFactory;
+
 class SlackSinkConnectorConfig : AbstractConfig  {
     constructor(props: Map<String, String>) : super(CONFIG, props)
 
     companion object {
+        private val log = LoggerFactory.getLogger(SlackSinkConnectorConfig::class.java);
+
         @JvmStatic
         val CONFIG = baseConfigDef()
-
-        val SLACK_TOKEN_CONFIG = "slack.token"
-        val SLACK_USER_CONFIG = "slack.username"
-        val SLACK_CHANNEL_CONFIG = "slack.channel"
-        val MESSAGE_TEMPLATE_CONFIG = "message.template"
-
+    
         protected fun baseConfigDef(): ConfigDef {
             val configDef = ConfigDef()
             addConnectorConfigs(configDef)
@@ -23,11 +22,10 @@ class SlackSinkConnectorConfig : AbstractConfig  {
 
         fun addConnectorConfigs(configDef: ConfigDef) {
             val group = "Connector"
-            var order = 0
+            var order = 0            
             configDef.define(
-                    SLACK_TOKEN_CONFIG,
+                    "slack.token",
                     ConfigDef.Type.STRING,
-                    null,
                     ConfigDef.Importance.HIGH,
                     "It's the most importatnt thing",
                     group,
@@ -35,9 +33,8 @@ class SlackSinkConnectorConfig : AbstractConfig  {
                     ConfigDef.Width.SHORT,
                     "Slack Token"
             ).define(
-                    SLACK_USER_CONFIG,
+                    "slack.username",
                     ConfigDef.Type.STRING,
-                    null,
                     ConfigDef.Importance.HIGH,
                     "Send to user",
                     group,
@@ -45,9 +42,8 @@ class SlackSinkConnectorConfig : AbstractConfig  {
                     ConfigDef.Width.SHORT,
                     "Slack User"
             ).define(
-                    SLACK_CHANNEL_CONFIG,
+                    "slack.channel",
                     ConfigDef.Type.STRING,
-                    null,
                     ConfigDef.Importance.HIGH,
                     "Send to channel",
                     group,
@@ -55,9 +51,8 @@ class SlackSinkConnectorConfig : AbstractConfig  {
                     ConfigDef.Width.SHORT,
                     "Slack User"
             ).define(
-                    MESSAGE_TEMPLATE_CONFIG,
+                    "message.template",
                     ConfigDef.Type.STRING,
-                    null,
                     ConfigDef.Importance.HIGH,
                     "Template to use",
                     group,

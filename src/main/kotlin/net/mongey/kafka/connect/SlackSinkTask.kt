@@ -31,8 +31,8 @@ class SlackSinkTask : SinkTask() {
     override fun start(props: Map<String, String>) {
         start(props, null)
         this.config = props;
-        var slack = Slack.getInstance();
-        this.slackMethodsClient = slack.methods(SlackSinkConnectorConfig.SLACK_TOKEN_CONFIG);
+        val slack = Slack.getInstance();
+        this.slackMethodsClient = slack.methods(this.config.get("slack.token"));
         this.slack = slack;
     }
 
@@ -48,18 +48,20 @@ class SlackSinkTask : SinkTask() {
     @Throws(ConnectException::class)
     override fun put(records: Collection<SinkRecord>) {
         log.trace("Putting {} to Slack.", records);
-        val configUser = this.config.get(SlackSinkConnectorConfig.SLACK_USER_CONFIG);
-        val configChannel = this.config.get(SlackSinkConnectorConfig.SLACK_CHANNEL_CONFIG);
+        val configUser = this.config.get("slack.username");
+        val configChannel = this.config.get("slack.channel");
 
-        log.info("ConfigUser " + configUser + "configChannel" + configChannel);
+        log.info("ConfigUser: " + configUser + ", configChannel: " + configChannel);
         for (record in records) {
             log.trace("Kafka Message: {}",record.toString());
             val recordData = recordToMap(record);
-            val t = config.get(SlackSinkConnectorConfig.MESSAGE_TEMPLATE_CONFIG);
+            val t = config.get("message.template");
             val defaultTemplate = "No Template found.";
             val template: String = t ?: defaultTemplate;
 
             var str = format(template, recordData);
+
+            log.info("RecordData: " + recordData.toString() + ", str: " + str)
 
             if (recordData.isEmpty()) {
                 log.error("Unable to convert record data into templatable message, skipping {}, {}", recordData, record);
@@ -67,16 +69,16 @@ class SlackSinkTask : SinkTask() {
             }
 
             if (configChannel != null) {
-                var request = ChatPostMessageRequest.builder()
+                val request = ChatPostMessageRequest.builder()
                         .channel(configChannel) 
                         .text(str)
                         .build();
-                var response = this.slackMethodsClient?.chatPostMessage(request);
+                val response = this.slackMethodsClient?.chatPostMessage(request);
             } else {
                 log.error("channel was null $configChannel");
             }
 
-            if (configUser != null) {
+            if (configUser != null && configUser != "") {
                 log.error("Sending to users not implemented yet.");
             }
         }
