@@ -1,103 +1,102 @@
-package net.mongey.kafka.connect
+package net.mongey.kafka.connect;
 
-import com.github.wnameless.json.flattener.JsonFlattener
-import com.ullink.slack.simpleslackapi.SlackSession
-import com.ullink.slack.simpleslackapi.impl.SlackSessionFactory
-import org.apache.commons.lang3.text.StrSubstitutor
-import org.apache.kafka.clients.consumer.OffsetAndMetadata
-import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.connect.errors.ConnectException
-import org.apache.kafka.connect.sink.SinkRecord
-import org.apache.kafka.connect.sink.SinkTask
-import org.slf4j.LoggerFactory
-import java.io.IOException
-import org.apache.kafka.connect.json.JsonConverter
-import java.nio.charset.StandardCharsets
-import java.util.*
+import com.github.wnameless.json.flattener.JsonFlattener;
+import com.slack.api.Slack;
+import com.slack.api.methods.MethodsClient;
+import com.slack.api.methods.request.chat.ChatPostMessageRequest;
+import com.slack.api.methods.response.chat.ChatPostMessageResponse;
+import org.apache.commons.lang3.text.StrSubstitutor;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.kafka.connect.sink.SinkTask;
+import org.slf4j.LoggerFactory;
+import java.io.IOException;
+import org.apache.kafka.connect.json.JsonConverter;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 
 class SlackSinkTask : SinkTask() {
-    var config : Map<String, String> = HashMap(1)
-    var session : SlackSession? = null
+    var config : Map<String, String> = HashMap(1);
+    var slack : Slack? = null;
+    var slackMethodsClient : MethodsClient? = null;
 
     override fun version(): String {
 //        return Version.getVersion()
-        return "0.0.1"
+        return "0.0.1";
     }
 
     override fun start(props: Map<String, String>) {
         start(props, null)
-        this.config = props
-        val session = SlackSessionFactory.createWebSocketSlackSession(this.config.get(SlackSinkConnectorConfig.SLACK_TOKEN_CONFIG))
-
-        try {
-            session.connect()
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
-        this.session = session
+        this.config = props;
+        var slack = Slack.getInstance();
+        this.slackMethodsClient = slack.methods(SlackSinkConnectorConfig.SLACK_TOKEN_CONFIG);
+        this.slack = slack;
     }
 
     // public for testing
     fun start(props: Map<String, String>, client: Any?) {
-        log.info("Starting SlackSinkTask.")
+        log.info("Starting SlackSinkTask.");
     }
 
     override fun open(partitions: Collection<TopicPartition>) {
-        log.debug("Opening the task for topic partitions: {}", partitions)
+        log.debug("Opening the task for topic partitions: {}", partitions);
     }
 
     @Throws(ConnectException::class)
     override fun put(records: Collection<SinkRecord>) {
-        log.trace("Putting {} to Slack.", records)
-        val configUser = this.config.get(SlackSinkConnectorConfig.SLACK_USER_CONFIG)
-        val configChannel = this.config.get(SlackSinkConnectorConfig.SLACK_CHANNEL_CONFIG)
+        log.trace("Putting {} to Slack.", records);
+        val configUser = this.config.get(SlackSinkConnectorConfig.SLACK_USER_CONFIG);
+        val configChannel = this.config.get(SlackSinkConnectorConfig.SLACK_CHANNEL_CONFIG);
 
-        log.info("ConfigUser " + configUser + "configChannel" + configChannel)
+        log.info("ConfigUser " + configUser + "configChannel" + configChannel);
         for (record in records) {
-            log.trace("Kafka Message: {}",record.toString())
-            val recordData = recordToMap(record)
-            val t = config.get(SlackSinkConnectorConfig.MESSAGE_TEMPLATE_CONFIG)
-            val defaultTemplate = "No Template found."
-            val template: String = t ?: defaultTemplate
+            log.trace("Kafka Message: {}",record.toString());
+            val recordData = recordToMap(record);
+            val t = config.get(SlackSinkConnectorConfig.MESSAGE_TEMPLATE_CONFIG);
+            val defaultTemplate = "No Template found.";
+            val template: String = t ?: defaultTemplate;
 
-            var str = format(template, recordData)
+            var str = format(template, recordData);
 
             if (recordData.isEmpty()) {
-                log.error("Unable to convert record data into templatable message, skipping {}, {}", recordData, record)
-                continue
+                log.error("Unable to convert record data into templatable message, skipping {}, {}", recordData, record);
+                continue;
             }
 
             if (configChannel != null) {
-                val channel = session?.findChannelByName(configChannel)
-                session?.sendMessage(channel, str)
+                var request = ChatPostMessageRequest.builder()
+                        .channel(configChannel) 
+                        .text(str)
+                        .build();
+                var response = this.slackMethodsClient?.chatPostMessage(request);
             } else {
-                log.error("channel was null $configChannel")
+                log.error("channel was null $configChannel");
             }
 
             if (configUser != null) {
-                val user = session?.findUserByUserName(configUser)
-
-                session?.sendMessageToUser(user, str, null)
+                log.error("Sending to users not implemented yet.");
             }
         }
     }
 
     override fun flush(offsets: Map<TopicPartition, OffsetAndMetadata>?) {
-        log.trace("Flushing data to Slack with the following offsets: {}", offsets)
+        log.trace("Flushing data to Slack with the following offsets: {}", offsets);
     }
 
     override fun close(partitions: Collection<TopicPartition>) {
-        log.debug("Closing the task for topic partitions: {}", partitions)
+        log.debug("Closing the task for topic partitions: {}", partitions);
     }
 
     @Throws(ConnectException::class)
     override fun stop() {
-        log.info("Stopping SlackSinkTask.")
+        log.info("Stopping SlackSinkTask.");
     }
 
     companion object {
-        private val log = LoggerFactory.getLogger(SlackSinkTask::class.java)
+        private val log = LoggerFactory.getLogger(SlackSinkTask::class.java);
     }
 }
 
@@ -105,7 +104,7 @@ fun recordToMap(record: SinkRecord): Map<String, String> {
     val schema = record.valueSchema()
     val value = record.value()
     val JSON_CONVERTER = JsonConverter()
-    JSON_CONVERTER.configure(Collections.singletonMap("schemas.enable", "false"), false);
+    JSON_CONVERTER.configure(Collections.singletonMap("schemas.enable", "false"), false)
 
     val normalizedMap = HashMap<String,String>()
     val rawJsonPayload = JSON_CONVERTER.fromConnectData(record.topic(), schema, value)
